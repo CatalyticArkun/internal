@@ -12,10 +12,6 @@ GPTOKEYB_DIR="$(GET_VAR "device" "storage/rom/mount")/MUOS/emulator/gptokeyb"
 GPTOKEYB_CONTROLLERCONFIG="/usr/lib/gamecontrollerdb.txt"
 GPTOKEYB_CONFDIR="/opt/muos/config/gptokeyb"
 
-export EVSIEVE_BIN=evsieve
-export EVSIEVE_DIR="/opt/muos/bin"
-export EVSIEVE_CONFDIR="/opt/muos/config/evsieve"
-
 if [ "$(GET_VAR "global" "settings/advanced/lock")" -eq 1 ] && [ ! -e "$MUX_LAUNCHER_AUTH" ]; then
 	EXEC_MUX "" "muxpass" -t launch
 	[ "$EXIT_STATUS" -eq 1 ] && touch "$MUX_LAUNCHER_AUTH"
@@ -45,10 +41,6 @@ if [ -f "$GPTOKEYB_CONFDIR/$CORE.gptk" ]; then
 		"$GPTOKEYB_DIR/$GPTOKEYB_BIN" -c "$GPTOKEYB_CONFDIR/$CORE.gptk" &
 fi
 
-if [ -f "$EVSIEVE_CONFDIR/$CORE.evs.sh" ]; then
-	"$EVSIEVE_CONFDIR/$CORE.evs.sh"
-fi
-
 STOP_BGM
 
 GET_VAR "global" "settings/advanced/led" >"$(GET_VAR "device" "led/normal")"
@@ -76,6 +68,8 @@ RA_HEIGHT="$(GET_VAR "device" "screen/height")"
 
 # Filesystem sync
 sync &
+
+cat /dev/zero >"$(GET_VAR "device" "screen/device")" 2>/dev/null
 
 # External Script
 if [ "$CORE" = external ]; then
@@ -164,7 +158,7 @@ echo 1 >/tmp/work_led_state
 
 cat /dev/zero >"$(GET_VAR "device" "screen/device")" 2>/dev/null
 
-killall -q "$GPTOKEYB_BIN" "$EVSIEVE_BIN"
+killall -q "$GPTOKEYB_BIN"
 
 case "$(GET_VAR "device" "board/name")" in
 	rg*) echo 0 >"/sys/class/power_supply/axp2202-battery/nds_pwrkey" ;;

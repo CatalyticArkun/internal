@@ -1,7 +1,20 @@
 #!/bin/sh
 # shellcheck disable=SC2086
 
-. /opt/muos/script/var/init/system.sh
+GLOBAL_CONFIG="/opt/muos/config/config.ini"
+KIOSK_CONFIG="/opt/muos/config/kiosk.ini"
+DBUS_SESSION_BUS_ADDRESS="unix:path=/run/dbus/system_bus_socket"
+PIPEWIRE_RUNTIME_DIR="/var/run"
+XDG_RUNTIME_DIR="/var/run"
+DEVICE_TYPE=$(tr '[:upper:]' '[:lower:]' <"/opt/muos/config/device.txt")
+DEVICE_CONFIG="/opt/muos/device/$DEVICE_TYPE/config.ini"
+DEVICE_CONTROL_DIR="/opt/muos/device/$DEVICE_TYPE/control"
+MUOS_BOOT_LOG="/opt/muos/boot.log"
+ALSA_CONFIG="/usr/share/alsa/alsa.conf"
+WPA_CONFIG="/etc/wpa_supplicant.conf"
+
+export GLOBAL_CONFIG KIOSK_CONFIG DBUS_SESSION_BUS_ADDRESS PIPEWIRE_RUNTIME_DIR XDG_RUNTIME_DIR \
+	DEVICE_TYPE DEVICE_CONFIG DEVICE_CONTROL_DIR MUOS_BOOT_LOG ALSA_CONFIG WPA_CONFIG
 
 ESC=$(printf '\x1b')
 CSI="${ESC}[38;5;"
@@ -46,45 +59,44 @@ SET_VAR() {
 }
 
 GET_VAR() {
-	[ -f "/run/muos/$1/$2" ] && cat "/run/muos/$1/$2" || echo ""
+	cat "/run/muos/$1/$2" 2>/dev/null
 }
 
 LOG() {
-	SYMBOL="$1"               # The symbol for the specific log type
-	MODULE="$(basename "$2")" # This is the name of the calling script without the full path
-	PROGRESS="$3"             # Used mainly for muxstart to show the progress line
-	TITLE="$4"                # The header of what is being logged - generally for sorting purposes
+	SYMBOL="$1"
+	MODULE="$(basename "$2")"
+	PROGRESS="$3"
+	TITLE="$4"
 	shift 4
 
-	# Extract the message format string since we can add things like %s %d etc
 	MSG="$1"
 	shift
 
-	# Time is of the essence!
-	TIME=$(date '+%Y-%m-%d %H:%M:%S')
+	SPACER=$(printf "%-10s\t" "$TITLE")
+	[ -z "$TITLE" ] && SPACER=$(printf "\t")
 
-	if [ "$(GET_VAR "global" "boot/factory_reset")" -eq 1 ]; then
-		/opt/muos/extra/muxstart "$PROGRESS" "$(printf "%s\n\n${MSG}\n" "$TITLE" "$@")" && sleep 0.5
-	fi
+	LOG_LINE=$(printf "[%6s] [%-3s${ESC}[0m] [%-16s]\t%s${MSG}\n" "$(UPTIME)" "$SYMBOL" "$MODULE" "$SPACER" "$@")
 
-	# Print to console and log file and ensure the message is formatted correctly with printf options
-	SPACER="$TITLE - "
-	[ -z "$TITLE" ] && SPACER=""
-	printf "[%s] [%s${ESC}[0m] [%s] %s${MSG}\n" "$TIME" "$SYMBOL" "$MODULE" "$SPACER" "$@" | tee -a "$MUOS_BOOT_LOG"
+	LOCKFILE="${MUOS_BOOT_LOG}.lock"
+
+	{
+		flock -x 9
+		printf "%s\n" "$LOG_LINE" >>"$MUOS_BOOT_LOG"
+		flock -u 9
+	} 9>>"$LOCKFILE"
 }
 
-LOG_INFO() { LOG "${CSI}33m*" "$@"; }
-LOG_WARN() { LOG "${CSI}226m!" "$@"; }
-LOG_ERROR() { LOG "${CSI}196m-" "$@"; }
-LOG_SUCCESS() { LOG "${CSI}46m+" "$@"; }
-LOG_DEBUG() { LOG "${CSI}202m?" "$@"; }
+LOG_INFO() { (LOG "${CSI}33m*" "$@") & }
+LOG_WARN() { (LOG "${CSI}226m!" "$@") & }
+LOG_ERROR() { (LOG "${CSI}196m-" "$@") & }
+LOG_SUCCESS() { (LOG "${CSI}46m+" "$@") & }
+LOG_DEBUG() { (LOG "${CSI}202m?" "$@") & }
 
 CRITICAL_FAILURE() {
 	case "$1" in
-		device) MESSAGE=$(printf "Critical Failure\n\nFailed to mount '%s'!\n\n%s" "$2" "$3") ;;
-		directory) MESSAGE=$(printf "Critical Failure\n\nFailed to mount '%s' on '%s'!" "$2" "$3") ;;
-		udev) MESSAGE="Critical Failure\n\nFailed to initialise udev!" ;;
-		*) MESSAGE="Critical Failure\n\nAn unknown error occurred!" ;;
+		mount) MESSAGE=$(printf "Critical Failure\n\nFailed to mount directory!") ;;
+		udev) MESSAGE=$(printf "Critical Failure\n\nFailed to initialise udev!") ;;
+		*) MESSAGE=$(printf "Critical Failure\n\nAn unknown error occurred!") ;;
 	esac
 
 	/opt/muos/extra/muxstart 0 "$MESSAGE"

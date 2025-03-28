@@ -75,7 +75,7 @@ if [ "$(GET_VAR "global" "settings/general/startup")" = "last" ] || [ "$(GET_VAR
 						sleep 1
 					done
 
-					LOG_SUCCESS "$0" 0 "FRONTEND" "Connectivity verified!"
+					LOG_SUCCESS "$0" 0 "FRONTEND" "Connectivity verified! Booting content!"
 					/opt/muos/extra/muxstart 0 "Connectivity verified! Booting content!"
 
 					GO_LAST_BOOT=1
@@ -126,6 +126,8 @@ if [ "$(GET_VAR "global" "settings/general/startup")" = "last" ] || [ "$(GET_VAR
 fi
 
 LOG_INFO "$0" 0 "FRONTEND" "Starting frontend launcher"
+
+sort -n -k1.3 "/opt/muos/boot.log" -o "/opt/muos/boot.log"
 cp /opt/muos/*.log "$(GET_VAR "device" "storage/rom/mount")/MUOS/log/boot/." &
 
 PROCESS_CONTENT_ACTION() {
